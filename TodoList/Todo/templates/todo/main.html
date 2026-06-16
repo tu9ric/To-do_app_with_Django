@@ -15,14 +15,20 @@
     body{
         background: #a8d7e1;
         font-family: 'Montserrat Alternates', sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        padding: 32px 16px;
+        box-sizing: border-box;
     }
 
     .container{
-        max-width: 70%;
+        max-width: 760px;
         margin: auto;
         background-color: #fff;
         -webkit-box-shadow: 2px 2px 13px -4px rgba(0, 0, 0, 0.21);
         box-shadow: 2px 2px 13px -4px rgba(0, 0, 0, 0.21);
+        border-radius: 5px;
+        overflow: hidden;
     }
 
     input{
@@ -34,10 +40,25 @@
     .header-bar{
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        gap: 16px;
         color: #fff;
         padding: 10px;
         border-radius: 5px 5px 0 0;
         background: #37B;
+    }
+
+    .header-bar h1,
+    .header-bar h3 {
+        margin: 0;
+    }
+
+    .header-bar h3 {
+        margin-top: 8px;
+    }
+
+    .header-bar form {
+        margin: 0;
     }
 
     .task-wrapper{
@@ -45,12 +66,14 @@
         align-items: center;
         justify-content: space-between;
         background-color:#fff;
-        border-top: 1px solid #dfe4ea
+        border-top: 1px solid #dfe4ea;
         overflow: hidden;
     }
 
     .task-title{
         display: flex;
+        align-items: center;
+        min-width: 0;
         padding: 20px;
     }
 
@@ -58,9 +81,11 @@
         text-decoration: none;
         color: #4b5156;
         margin-left: 10px;
+        overflow-wrap: anywhere;
     }
 
     .task-complete-icon{
+        flex: 0 0 auto;
         height: 20px;
         width: 20px;
         background-color: rgb(0, 255, 0);
@@ -68,6 +93,7 @@
     }
 
     .task-incomplete-icon {
+        flex: 0 0 auto;
         height: 20px;
         width: 20px;
         background-color: rgb(160, 160, 160);
@@ -83,8 +109,13 @@
         padding: 20px 20px;
         }
 
-    .header-bar a {
+    .header-bar a,
+    .link-button {
+        background: transparent;
+        border: 0;
         color: rgb(247, 247, 247);
+        cursor: pointer;
+        font: inherit;
         text-decoration: none;
     }
 
@@ -99,17 +130,24 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 16px;
         padding: 20px;
+    }
+
+    #search-and-wrapper form {
+        display: flex;
+        flex: 1;
+        gap: 10px;
     }
 
     input[type=text],
     input[type=password],
-
     textarea {
         border: 1px solid #757575;
         border-radius: 5px;
+        box-sizing: border-box;
         padding: 10px;
-        width: 50%;
+        width: 100%;
         }
     label{
         padding-top: 10px !important;
@@ -134,6 +172,30 @@
 
     .card-body{
         padding: 20px;
+    }
+
+    @media (max-width: 640px) {
+        body {
+            padding: 0;
+        }
+
+        .container {
+            max-width: 100%;
+            min-height: 100vh;
+            border-radius: 0;
+        }
+
+        .header-bar,
+        #search-and-wrapper,
+        #search-and-wrapper form {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        #add-link {
+            align-self: flex-end;
+            line-height: 1;
+        }
     }
 
 

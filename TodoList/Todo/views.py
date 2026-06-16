@@ -1,5 +1,4 @@
-from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
@@ -16,15 +15,19 @@ class TaskList(LoginRequiredMixin, ListView):
     model = Task
     context_object_name = 'task'
 
+    def get_queryset(self):
+        queryset = Task.objects.filter(user=self.request.user)
+        search_input = self.request.GET.get('search-area', '').strip()
+
+        if search_input:
+            queryset = queryset.filter(title__icontains=search_input)
+
+        return queryset
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['task'] = context['task'].filter(user=self.request.user)
-        context['count'] = context['task'].filter(complete=False).count()
-
-        search_input = self.request.GET.get('search-area') or ''
-        if search_input:
-            context['task'] = context['task'].filter(title__icontains=search_input)
-            context['search_input'] = search_input
+        context['count'] = Task.objects.filter(user=self.request.user, complete=False).count()
+        context['search_input'] = self.request.GET.get('search-area', '').strip()
         return context
 
 
@@ -32,6 +35,9 @@ class TaskDetail(LoginRequiredMixin, DetailView):
     model = Task
     context_object_name = 'task'
     template_name = 'todo/task.html'
+
+    def get_queryset(self):
+        return Task.objects.filter(user=self.request.user)
 
 
 class TaskCreate(LoginRequiredMixin, CreateView):
@@ -49,17 +55,23 @@ class TaskUpdate(LoginRequiredMixin, UpdateView):
     fields = ['title', 'description', 'category', 'complete']
     success_url = reverse_lazy('task')
 
+    def get_queryset(self):
+        return Task.objects.filter(user=self.request.user)
+
 
 class TaskDelete(LoginRequiredMixin, DeleteView):
     model = Task
     context_object_name = 'task'
     success_url = reverse_lazy('task')
 
+    def get_queryset(self):
+        return Task.objects.filter(user=self.request.user)
+
 
 class CustomLoginView(LoginView):
     template_name = 'todo/login.html'
     fields = "__all__"
-    redirect_authenticated_user = False
+    redirect_authenticated_user = True
 
     def get_success_url(self):
         return reverse_lazy('task')
@@ -80,4 +92,4 @@ class RegisterPage(FormView):
     def get(self, *args, **kwargs):
         if self.request.user.is_authenticated:
             return redirect('task')
-        return super(RegisterPage, self).get(*args, *kwargs)
+        return super(RegisterPage, self).get(*args, **kwargs)

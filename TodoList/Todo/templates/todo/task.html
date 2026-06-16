@@ -3,7 +3,19 @@
 
 {% block content %}
 
-<h1>Task: {{ task }}</h1>
-<p>Description: {{ description }}</p>
+<div class="header-bar">
+    <a href="{% url 'task' %}">&#8592; Back</a>
+</div>
+
+<div class="card-body">
+    <h1>{{ task.title }}</h1>
+    {% if task.description %}
+        <p>{{ task.description }}</p>
+    {% endif %}
+    {% if task.category %}
+        <p><b>Category:</b> {{ task.category }}</p>
+    {% endif %}
+    <p><b>Status:</b> {% if task.complete %}Complete{% else %}Incomplete{% endif %}</p>
+</div>
 
 {% endblock content%}
