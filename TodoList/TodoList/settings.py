@@ -11,12 +11,20 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+if os.environ.get('USE_PYSQLITE3', 'False').lower() == 'true':
+    try:
+        import pysqlite3
+    except ImportError as exc:
+        raise ImproperlyConfigured('Install pysqlite3-binary or set USE_PYSQLITE3=False.') from exc
+    sys.modules['sqlite3'] = pysqlite3
 
 
 # Quick-start development settings - unsuitable for production

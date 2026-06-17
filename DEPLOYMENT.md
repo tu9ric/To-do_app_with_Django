@@ -21,6 +21,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+If the server has an old system SQLite and Django reports `SQLite 3.31 or later is required`,
+install the bundled SQLite package and enable it in `.env`:
+
+```bash
+pip install pysqlite3-binary
+echo "USE_PYSQLITE3=True" >> .env
+```
+
 On Windows, activate with:
 
 ```powershell
