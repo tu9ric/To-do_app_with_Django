@@ -1,0 +1,22 @@
+{% extends 'todo/app_shell.html' %}
+
+{% block app_content %}
+<section class="mode-header">
+    <div>
+        <p class="eyebrow">{{ ui.files_eyebrow }}</p>
+        <h1>{{ ui.delete }}: {{ file.title }}</h1>
+        <p>{{ file.file_name }} / {{ file.size|filesizeformat }}</p>
+    </div>
+</section>
+
+<section class="hub-panel settings-panel">
+    <form action="" method="post">
+        {% csrf_token %}
+        <p class="muted-text">This file will be removed from the shared space.</p>
+        <div class="form-actions">
+            <button class="button danger-button" type="submit">{{ ui.delete }}</button>
+            <a class="muted-action" href="{% url 'files' %}">{{ ui.reset }}</a>
+        </div>
+    </form>
+</section>
+{% endblock app_content %}

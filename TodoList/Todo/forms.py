@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django import forms
 
 from .models import ChatMessage, CoupleEvent, CoupleSpace, SharedFile, Task
+from .security import encrypt_bytes, encrypt_text
 
 
 User = get_user_model()
@@ -74,6 +75,15 @@ class SharedFileForm(forms.ModelForm):
         return instance
 
 
+class SharedFileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = SharedFile
+        fields = ['title', 'category', 'favorite', 'note']
+        widgets = {
+            'note': forms.Textarea(attrs={'rows': 4}),
+        }
+
+
 class CoupleEventForm(forms.ModelForm):
     class Meta:
         model = CoupleEvent
@@ -85,18 +95,64 @@ class CoupleEventForm(forms.ModelForm):
 
 
 class ChatMessageForm(forms.ModelForm):
+    upload = forms.FileField(label='Attachment', required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['attachment_type'].required = False
+
     class Meta:
         model = ChatMessage
-        fields = ['message']
+        fields = ['message', 'attachment_type']
         labels = {
             'message': '',
+            'attachment_type': 'Attachment type',
         }
         widgets = {
             'message': forms.Textarea(attrs={
                 'rows': 3,
                 'placeholder': 'Write a note, meal report, plan, or tiny love letter...',
             }),
+            'attachment_type': forms.HiddenInput(),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        message = (cleaned_data.get('message') or '').strip()
+        upload = self.files.get('upload')
+        attachment_type = cleaned_data.get('attachment_type') or ChatMessage.TEXT
+        cleaned_data['attachment_type'] = attachment_type
+
+        if attachment_type != ChatMessage.TEXT and not upload:
+            raise ValidationError('Attach a file for this message type.')
+        if attachment_type == ChatMessage.TEXT and not message:
+            raise ValidationError('Write a message or choose an attachment type.')
+        if upload and upload.size > MAX_UPLOAD_SIZE:
+            raise ValidationError('Attachment size must be 50 MB or less.')
+
+        if upload and attachment_type == ChatMessage.PHOTO and not upload.content_type.startswith('image/'):
+            raise ValidationError('Photo messages must use an image file.')
+        if upload and attachment_type == ChatMessage.VOICE and not upload.content_type.startswith('audio/'):
+            raise ValidationError('Voice messages must use an audio file.')
+        if upload and attachment_type == ChatMessage.VIDEO_CIRCLE and not upload.content_type.startswith('video/'):
+            raise ValidationError('Video circles must use a video file.')
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.message = encrypt_text(instance.message)
+        upload = self.files.get('upload')
+
+        if upload:
+            instance.file_name = upload.name
+            instance.content_type = getattr(upload, 'content_type', '') or ''
+            instance.size = upload.size
+            instance.data = encrypt_bytes(upload.read())
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class CoupleSpaceForm(forms.ModelForm):

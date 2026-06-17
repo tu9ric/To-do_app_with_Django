@@ -104,7 +104,7 @@
             {% for message in chat_messages %}
                 <div class="chat-bubble">
                     <strong>{{ message.user|title }}</strong>
-                    <p>{{ message.message }}</p>
+                    <p>{{ message.display_message }}</p>
                     <small>{{ message.created|date:"M j, H:i" }}</small>
                 </div>
             {% empty %}

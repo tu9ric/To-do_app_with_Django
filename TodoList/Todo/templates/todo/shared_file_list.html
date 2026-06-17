@@ -55,7 +55,11 @@
                 <h3>{{ file.title }}</h3>
                 <p>{{ file.file_name }} / {{ file.size|filesizeformat }}</p>
                 {% if file.note %}<p>{{ file.note|truncatechars:120 }}</p>{% endif %}
-                <a class="primary-action" href="{% url 'file-download' file.id %}">{{ ui.download }}</a>
+                <div class="file-actions">
+                    <a class="primary-action" href="{% url 'file-download' file.id %}">{{ ui.download }}</a>
+                    <a class="muted-action" href="{% url 'file-edit' file.id %}">{{ ui.edit }}</a>
+                    <a class="muted-action danger-action" href="{% url 'file-delete' file.id %}">{{ ui.delete }}</a>
+                </div>
             </article>
         {% empty %}
             <div class="empty-state">

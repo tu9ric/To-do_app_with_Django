@@ -214,6 +214,64 @@ class CoupleHomeFeatureTests(TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertEqual(download.content, b'flight details')
 
+    def test_shared_file_can_be_deleted_from_active_space(self):
+        response = self.client.post(reverse('file-upload'), {
+            'title': 'Old ticket',
+            'category': SharedFile.DOCUMENT,
+            'note': '',
+            'upload': SimpleUploadedFile('old.txt', b'old data', content_type='text/plain'),
+        })
+        self.assertRedirects(response, reverse('files'))
+        shared_file = SharedFile.objects.get(title='Old ticket')
+
+        response = self.client.post(reverse('file-delete', args=[shared_file.id]))
+
+        self.assertRedirects(response, reverse('files'))
+        self.assertFalse(SharedFile.objects.filter(id=shared_file.id).exists())
+
+    def test_user_cannot_delete_file_from_another_space(self):
+        other_user = User.objects.create_user(username='other', password='pass12345')
+        other_space = CoupleSpace.objects.create(name='Other home', owner=other_user)
+        other_space.members.add(other_user)
+        shared_file = SharedFile.objects.create(
+            owner=other_user,
+            space=other_space,
+            title='Private file',
+            file_name='private.txt',
+            content_type='text/plain',
+            size=7,
+            data=b'private',
+        )
+
+        response = self.client.post(reverse('file-delete', args=[shared_file.id]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(SharedFile.objects.filter(id=shared_file.id).exists())
+
+    def test_shared_file_category_can_be_updated(self):
+        self.client.post(reverse('file-upload'), {
+            'title': 'Kitchen photo',
+            'category': SharedFile.GENERAL,
+            'note': '',
+            'upload': SimpleUploadedFile('kitchen.jpg', b'image data', content_type='image/jpeg'),
+        })
+        shared_file = SharedFile.objects.get(title='Kitchen photo')
+
+        response = self.client.post(reverse('file-edit', args=[shared_file.id]), {
+            'title': 'Kitchen photo',
+            'category': SharedFile.PHOTO,
+            'favorite': 'on',
+            'note': 'For renovation ideas',
+        })
+
+        self.assertRedirects(response, reverse('files'))
+        shared_file.refresh_from_db()
+        self.assertEqual(shared_file.category, SharedFile.PHOTO)
+        self.assertTrue(shared_file.favorite)
+
+        response = self.client.get(reverse('files'), {'category': SharedFile.PHOTO})
+        self.assertContains(response, 'Kitchen photo')
+
     def test_event_can_be_created(self):
         response = self.client.post(reverse('event-create'), {
             'title': 'Anniversary',
@@ -235,7 +293,45 @@ class CoupleHomeFeatureTests(TestCase):
         })
 
         self.assertRedirects(response, reverse('chat'))
-        self.assertTrue(ChatMessage.objects.filter(
-            user=self.user,
-            message='Dinner report: soup and tea',
-        ).exists())
+        message = ChatMessage.objects.get(user=self.user)
+        self.assertNotEqual(message.message, 'Dinner report: soup and tea')
+        self.assertEqual(message.display_message, 'Dinner report: soup and tea')
+
+    def test_photo_message_can_be_sent_and_rendered(self):
+        response = self.client.post(reverse('chat-send'), {
+            'message': 'Look at this',
+            'attachment_type': ChatMessage.PHOTO,
+            'upload': SimpleUploadedFile('photo.jpg', b'jpeg bytes', content_type='image/jpeg'),
+        })
+
+        self.assertRedirects(response, reverse('chat'))
+        message = ChatMessage.objects.get(user=self.user, attachment_type=ChatMessage.PHOTO)
+        self.assertEqual(message.attachment_type, ChatMessage.PHOTO)
+        self.assertNotEqual(bytes(message.data), b'jpeg bytes')
+        self.assertEqual(message.display_message, 'Look at this')
+
+        response = self.client.get(reverse('chat'))
+        self.assertContains(response, reverse('chat-attachment', args=[message.id]))
+
+        response = self.client.get(reverse('chat-attachment', args=[message.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'jpeg bytes')
+
+    def test_user_cannot_download_chat_attachment_from_another_space(self):
+        other_user = User.objects.create_user(username='chat-other', password='pass12345')
+        other_space = CoupleSpace.objects.create(name='Other chat', owner=other_user)
+        other_space.members.add(other_user)
+        message = ChatMessage.objects.create(
+            user=other_user,
+            space=other_space,
+            message='private',
+            attachment_type=ChatMessage.PHOTO,
+            file_name='private.jpg',
+            content_type='image/jpeg',
+            size=7,
+            data=b'private',
+        )
+
+        response = self.client.get(reverse('chat-attachment', args=[message.id]))
+
+        self.assertEqual(response.status_code, 404)

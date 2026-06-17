@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from .security import decrypt_text
 
 
 class CoupleSpace(models.Model):
@@ -78,9 +79,26 @@ class CoupleEvent(models.Model):
 
 
 class ChatMessage(models.Model):
+    TEXT = 'text'
+    PHOTO = 'photo'
+    VOICE = 'voice'
+    VIDEO_CIRCLE = 'video_circle'
+
+    ATTACHMENT_CHOICES = [
+        (TEXT, 'Text'),
+        (PHOTO, 'Photo'),
+        (VOICE, 'Voice'),
+        (VIDEO_CIRCLE, 'Video circle'),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     space = models.ForeignKey(CoupleSpace, on_delete=models.CASCADE, null=True, blank=True, related_name='messages')
-    message = models.TextField()
+    message = models.TextField(blank=True)
+    attachment_type = models.CharField(max_length=30, choices=ATTACHMENT_CHOICES, default=TEXT)
+    file_name = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=120, blank=True)
+    size = models.PositiveIntegerField(default=0)
+    data = models.BinaryField(null=True, blank=True)
     attachment = models.ForeignKey(
         SharedFile,
         on_delete=models.SET_NULL,
@@ -94,4 +112,8 @@ class ChatMessage(models.Model):
         ordering = ['-created']
 
     def __str__(self):
-        return self.message[:60]
+        return self.display_message[:60]
+
+    @property
+    def display_message(self):
+        return decrypt_text(self.message)

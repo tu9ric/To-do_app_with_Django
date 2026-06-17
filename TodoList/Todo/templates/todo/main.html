@@ -603,6 +603,22 @@
         margin: 0;
     }
 
+    .file-actions,
+    .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .danger-action {
+        color: #b64242;
+    }
+
+    .danger-button {
+        background: #b64242;
+        border-color: #b64242;
+    }
+
     .favorite-pill {
         background: #fff8ec;
         border-color: #f2d9ae;
@@ -655,6 +671,150 @@
 
     .chat-compose {
         grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .chat-compose-fields {
+        display: grid;
+        gap: 10px;
+    }
+
+    .chat-type-picker,
+    .chat-attachment-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .chat-type-picker button {
+        background: #eef4f1;
+        border: 1px solid #d4e1da;
+        border-radius: 999px;
+        color: #2f6f73;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        padding: 9px 13px;
+    }
+
+    .chat-type-picker button.selected {
+        background: #2f6f73;
+        border-color: #2f6f73;
+        color: #fff;
+    }
+
+    .chat-attachment-controls input[type=file] {
+        max-width: 100%;
+    }
+
+    .emoji-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .emoji-row button {
+        background: #eef4f1;
+        border: 1px solid #d4e1da;
+        border-radius: 999px;
+        cursor: pointer;
+        font-size: 18px;
+        height: 38px;
+        width: 42px;
+    }
+
+    .record-tools {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .record-circle-button {
+        background: #ef7d57;
+        border: 1px solid #ef7d57;
+        border-radius: 999px;
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+        padding: 11px 16px;
+        touch-action: none;
+        user-select: none;
+    }
+
+    .record-circle-button.recording {
+        background: #b64242;
+        border-color: #b64242;
+        box-shadow: 0 0 0 6px rgba(182, 66, 66, 0.18);
+    }
+
+    .record-status {
+        color: #687672;
+        font-size: 13px;
+    }
+
+    .chat-photo {
+        border-radius: 8px;
+        display: block;
+        max-height: 420px;
+        max-width: min(100%, 520px);
+        object-fit: cover;
+    }
+
+    .chat-audio {
+        width: min(100%, 420px);
+    }
+
+    .video-circle-trigger {
+        align-items: center;
+        background: transparent;
+        border: 0;
+        color: inherit;
+        cursor: pointer;
+        display: inline-grid;
+        gap: 8px;
+        justify-items: center;
+        padding: 0;
+    }
+
+    .video-circle-trigger video,
+    .floating-video-circle video {
+        aspect-ratio: 1;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .video-circle-trigger video {
+        height: 150px;
+        width: 150px;
+    }
+
+    .floating-video-circle {
+        bottom: 24px;
+        position: fixed;
+        right: 24px;
+        z-index: 50;
+    }
+
+    .floating-video-circle video {
+        background: #000;
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38);
+        height: 220px;
+        width: 220px;
+    }
+
+    .floating-video-circle button {
+        background: #b64242;
+        border: 0;
+        border-radius: 999px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 22px;
+        height: 38px;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 38px;
     }
 
     .settings-panel {
@@ -763,7 +923,8 @@
     .theme-dark .event-row p,
     .theme-dark .chat-bubble small,
     .theme-dark .task-status,
-    .theme-dark .task-meta {
+    .theme-dark .task-meta,
+    .theme-dark .record-status {
         color: #aebfba;
     }
 
@@ -778,10 +939,18 @@
 
     .theme-dark .muted-action,
     .theme-dark .mini-action,
-    .theme-dark .segmented-control {
+    .theme-dark .segmented-control,
+    .theme-dark .emoji-row button,
+    .theme-dark .chat-type-picker button {
         background: #17201e;
         border-color: #3b4d47;
         color: #dcefeb;
+    }
+
+    .theme-dark .chat-type-picker button.selected {
+        background: #2f6f73;
+        border-color: #2f6f73;
+        color: #fff;
     }
 
     .theme-dark .question-card {
@@ -826,6 +995,15 @@
 
     .theme-dark .task-actions .danger-link {
         color: #ff7777;
+    }
+
+    .theme-dark .danger-action {
+        color: #ff7777;
+    }
+
+    .theme-dark .danger-button {
+        background: #9f3a3a;
+        border-color: #9f3a3a;
     }
 
     .dashboard-hero {

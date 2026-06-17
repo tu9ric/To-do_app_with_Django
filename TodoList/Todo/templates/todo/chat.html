@@ -14,7 +14,17 @@
         {% for message in chat_messages %}
             <div class="chat-bubble">
                 <strong>{{ message.user|title }}</strong>
-                <p>{{ message.message }}</p>
+                {% if message.display_message %}<p>{{ message.display_message }}</p>{% endif %}
+                {% if message.data and message.attachment_type == 'photo' %}
+                    <img class="chat-photo" src="{% url 'chat-attachment' message.id %}" alt="{{ message.file_name }}">
+                {% elif message.data and message.attachment_type == 'voice' %}
+                    <audio class="chat-audio" controls src="{% url 'chat-attachment' message.id %}"></audio>
+                {% elif message.data and message.attachment_type == 'video_circle' %}
+                    <button class="video-circle-trigger" type="button" data-video-src="{% url 'chat-attachment' message.id %}">
+                        <video muted playsinline preload="metadata" src="{% url 'chat-attachment' message.id %}"></video>
+                        <span>Play</span>
+                    </button>
+                {% endif %}
                 <small>{{ message.created|date:"M j, H:i" }}</small>
             </div>
         {% empty %}
@@ -25,10 +35,181 @@
         {% endfor %}
     </div>
 
-    <form class="chat-form chat-compose" action="{% url 'chat-send' %}" method="post">
+    <form class="chat-form chat-compose" action="{% url 'chat-send' %}" method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        {{ chat_form.message }}
+        <div class="chat-compose-fields">
+            {{ chat_form.message }}
+            <div class="emoji-row" aria-label="Emoji picker">
+                <button type="button" data-emoji="❤️">❤️</button>
+                <button type="button" data-emoji="😂">😂</button>
+                <button type="button" data-emoji="🥰">🥰</button>
+                <button type="button" data-emoji="👍">👍</button>
+                <button type="button" data-emoji="🔥">🔥</button>
+                <button type="button" data-emoji="✨">✨</button>
+            </div>
+            <div class="chat-type-picker" data-chat-type-picker>
+                {{ chat_form.attachment_type }}
+                <button class="selected" type="button" data-chat-type="text">Text</button>
+                <button type="button" data-chat-type="photo">Photo</button>
+                <button type="button" data-chat-type="voice">Voice</button>
+                <button type="button" data-chat-type="video_circle">Circle</button>
+            </div>
+            <div class="chat-attachment-controls" data-chat-upload hidden>
+                {{ chat_form.upload }}
+            </div>
+            <div class="record-tools">
+                <button class="record-circle-button" type="button" data-record-circle>
+                    Hold to record circle
+                </button>
+                <span class="record-status" data-record-status></span>
+            </div>
+        </div>
         <button class="button" type="submit">{{ ui.send }}</button>
     </form>
 </section>
+
+<div class="floating-video-circle" hidden>
+    <video controls autoplay playsinline></video>
+    <button type="button" aria-label="Close video">×</button>
+</div>
+
+<script>
+    const messageInput = document.querySelector('textarea[name="message"]');
+    const attachmentTypeInput = document.querySelector('input[name="attachment_type"]');
+    const uploadWrap = document.querySelector('[data-chat-upload]');
+    const uploadInput = document.querySelector('input[name="upload"]');
+    const typeButtons = document.querySelectorAll('[data-chat-type]');
+    const chatForm = document.querySelector('.chat-compose');
+    const recordCircleButton = document.querySelector('[data-record-circle]');
+    const recordStatus = document.querySelector('[data-record-status]');
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let recordingStream = null;
+
+    if (attachmentTypeInput && !attachmentTypeInput.value) {
+        attachmentTypeInput.value = 'text';
+    }
+
+    typeButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            typeButtons.forEach((item) => item.classList.remove('selected'));
+            button.classList.add('selected');
+
+            const selectedType = button.dataset.chatType;
+            if (attachmentTypeInput) attachmentTypeInput.value = selectedType;
+            if (uploadWrap) uploadWrap.hidden = selectedType === 'text';
+            if (uploadInput && selectedType === 'text') uploadInput.value = '';
+        });
+    });
+
+    document.querySelectorAll('[data-emoji]').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (!messageInput) return;
+            const start = messageInput.selectionStart || messageInput.value.length;
+            const end = messageInput.selectionEnd || messageInput.value.length;
+            messageInput.value = messageInput.value.slice(0, start) + button.dataset.emoji + messageInput.value.slice(end);
+            messageInput.focus();
+            messageInput.selectionStart = messageInput.selectionEnd = start + button.dataset.emoji.length;
+        });
+    });
+
+    const floatingVideo = document.querySelector('.floating-video-circle');
+    const floatingVideoTag = floatingVideo?.querySelector('video');
+    const closeFloatingVideo = floatingVideo?.querySelector('button');
+
+    document.querySelectorAll('.video-circle-trigger').forEach((button) => {
+        button.addEventListener('click', () => {
+            if (!floatingVideo || !floatingVideoTag) return;
+            floatingVideoTag.src = button.dataset.videoSrc;
+            floatingVideo.hidden = false;
+            floatingVideoTag.play();
+        });
+    });
+
+    closeFloatingVideo?.addEventListener('click', () => {
+        if (!floatingVideo || !floatingVideoTag) return;
+        floatingVideoTag.pause();
+        floatingVideoTag.removeAttribute('src');
+        floatingVideo.hidden = true;
+    });
+
+    async function startCircleRecording() {
+        if (!navigator.mediaDevices || !window.MediaRecorder || mediaRecorder?.state === 'recording') {
+            if (recordStatus) recordStatus.textContent = 'Recording is not available in this browser.';
+            return;
+        }
+
+        try {
+            recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            recordedChunks = [];
+            const options = MediaRecorder.isTypeSupported('video/webm') ? { mimeType: 'video/webm' } : {};
+            mediaRecorder = new MediaRecorder(recordingStream, options);
+            mediaRecorder.addEventListener('dataavailable', (event) => {
+                if (event.data.size > 0) recordedChunks.push(event.data);
+            });
+            mediaRecorder.addEventListener('stop', sendCircleRecording);
+            mediaRecorder.start();
+            recordCircleButton?.classList.add('recording');
+            if (recordStatus) recordStatus.textContent = 'Recording... release to send';
+        } catch (error) {
+            if (recordStatus) recordStatus.textContent = 'Camera or microphone access was denied.';
+        }
+    }
+
+    function stopCircleRecording() {
+        if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+        mediaRecorder.stop();
+        recordCircleButton?.classList.remove('recording');
+        if (recordingStream) {
+            recordingStream.getTracks().forEach((track) => track.stop());
+            recordingStream = null;
+        }
+    }
+
+    async function sendCircleRecording() {
+        if (!chatForm || recordedChunks.length === 0) {
+            if (recordStatus) recordStatus.textContent = '';
+            return;
+        }
+
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const formData = new FormData(chatForm);
+        formData.set('attachment_type', 'video_circle');
+        formData.set('message', messageInput?.value || '');
+        formData.set('upload', blob, `circle-${Date.now()}.webm`);
+
+        if (recordStatus) recordStatus.textContent = 'Sending...';
+
+        const response = await fetch(chatForm.action, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (response.ok || response.redirected) {
+            window.location.href = response.url || chatForm.action.replace('/send/', '/');
+        } else if (recordStatus) {
+            recordStatus.textContent = 'Could not send recording.';
+        }
+    }
+
+    recordCircleButton?.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        recordCircleButton.setPointerCapture(event.pointerId);
+        startCircleRecording();
+    });
+
+    recordCircleButton?.addEventListener('pointerup', (event) => {
+        event.preventDefault();
+        stopCircleRecording();
+    });
+
+    recordCircleButton?.addEventListener('pointercancel', stopCircleRecording);
+    recordCircleButton?.addEventListener('pointerleave', (event) => {
+        if (mediaRecorder?.state === 'recording' && event.buttons === 0) stopCircleRecording();
+    });
+</script>
 {% endblock app_content %}

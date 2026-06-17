@@ -20,9 +20,11 @@ from .forms import (
     CoupleEventForm,
     CoupleSpaceForm,
     SharedFileForm,
+    SharedFileUpdateForm,
     TaskForm,
 )
 from .models import ChatMessage, CoupleEvent, CoupleSpace, SharedFile, Task
+from .security import decrypt_bytes
 
 
 User = get_user_model()
@@ -340,6 +342,26 @@ class SharedFileCreate(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
+class SharedFileDelete(LoginRequiredMixin, DeleteView):
+    model = SharedFile
+    context_object_name = 'file'
+    template_name = 'todo/shared_file_confirm_delete.html'
+    success_url = reverse_lazy('files')
+
+    def get_queryset(self):
+        return SharedFile.objects.filter(space=get_active_space(self.request))
+
+
+class SharedFileUpdate(LoginRequiredMixin, UpdateView):
+    model = SharedFile
+    form_class = SharedFileUpdateForm
+    template_name = 'todo/shared_file_edit_form.html'
+    success_url = reverse_lazy('files')
+
+    def get_queryset(self):
+        return SharedFile.objects.filter(space=get_active_space(self.request))
+
+
 class CoupleEventCreate(LoginRequiredMixin, CreateView):
     model = CoupleEvent
     form_class = CoupleEventForm
@@ -361,6 +383,17 @@ class ChatMessageCreate(LoginRequiredMixin, CreateView):
         form.instance.user = self.request.user
         form.instance.space = get_active_space(self.request)
         return super().form_valid(form)
+
+
+@login_required
+def download_chat_attachment(request, pk):
+    message = get_object_or_404(ChatMessage, pk=pk, space=get_active_space(request))
+    if not message.data:
+        return HttpResponse(status=404)
+
+    response = HttpResponse(decrypt_bytes(message.data), content_type=message.content_type or 'application/octet-stream')
+    response['Content-Disposition'] = f'inline; filename="{message.file_name}"'
+    return response
 
 
 @login_required
