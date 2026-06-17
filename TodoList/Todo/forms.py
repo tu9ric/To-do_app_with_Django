@@ -1,10 +1,11 @@
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, UserCreationForm
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django import forms
 
 from .models import ChatMessage, CoupleEvent, CoupleSpace, SharedFile, Task
-from .security import encrypt_bytes, encrypt_text
+from .security import decrypt_text, encrypt_bytes, encrypt_text
 
 
 User = get_user_model()
@@ -27,6 +28,73 @@ class CaseInsensitiveUserCreationForm(UserCreationForm):
         if username and User.objects.filter(username__iexact=username).exists():
             raise ValidationError('A user with that username already exists.')
         return username
+
+
+class AccountProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name']
+        labels = {
+            'username': 'Username',
+            'email': 'Email',
+            'first_name': 'Display name',
+        }
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if not username:
+            raise ValidationError('Username is required.')
+
+        duplicate = User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists()
+        if duplicate:
+            raise ValidationError('A user with that username already exists.')
+        return username
+
+
+class AccountDeleteForm(forms.Form):
+    password = forms.CharField(label='Password', widget=forms.PasswordInput)
+
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def clean_password(self):
+        password = self.cleaned_data['password']
+        if not self.user.check_password(password):
+            raise ValidationError('Password is incorrect.')
+        return password
+
+
+class AccountRecoveryForm(forms.Form):
+    username = forms.CharField(label='Username', max_length=150)
+    password1 = forms.CharField(label='New password', widget=forms.PasswordInput)
+    password2 = forms.CharField(label='Repeat new password', widget=forms.PasswordInput)
+
+    def clean_username(self):
+        username = self.cleaned_data['username'].strip()
+        user = User.objects.filter(username__iexact=username).first()
+        if not user:
+            raise ValidationError('Account was not found.')
+        if user.is_active:
+            raise ValidationError('This account is already active.')
+        self.user = user
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get('password1')
+        password2 = cleaned_data.get('password2')
+        if password1 and password2 and password1 != password2:
+            raise ValidationError('Passwords do not match.')
+        if password1 and hasattr(self, 'user'):
+            validate_password(password1, self.user)
+        return cleaned_data
+
+    def save(self):
+        self.user.set_password(self.cleaned_data['password1'])
+        self.user.is_active = True
+        self.user.save(update_fields=['password', 'is_active'])
+        return self.user
 
 
 class TaskForm(forms.ModelForm):
@@ -150,6 +218,39 @@ class ChatMessageForm(forms.ModelForm):
             instance.size = upload.size
             instance.data = encrypt_bytes(upload.read())
 
+        if commit:
+            instance.save()
+        return instance
+
+
+class ChatMessageEditForm(forms.ModelForm):
+    class Meta:
+        model = ChatMessage
+        fields = ['message']
+        labels = {
+            'message': '',
+        }
+        widgets = {
+            'message': forms.Textarea(attrs={
+                'rows': 4,
+                'placeholder': 'Edit message...',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.initial['message'] = decrypt_text(self.instance.message)
+
+    def clean_message(self):
+        message = self.cleaned_data.get('message', '').strip()
+        if not message:
+            raise ValidationError('Message cannot be empty.')
+        return message
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.message = encrypt_text(instance.message)
         if commit:
             instance.save()
         return instance

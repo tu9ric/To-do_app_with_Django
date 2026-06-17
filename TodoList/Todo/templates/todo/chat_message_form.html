@@ -1,0 +1,21 @@
+{% extends 'todo/app_shell.html' %}
+
+{% block app_content %}
+<section class="mode-header">
+    <div>
+        <p class="eyebrow">{{ ui.chat_eyebrow }}</p>
+        <h1>{{ ui.edit }}</h1>
+    </div>
+</section>
+
+<section class="hub-panel settings-panel">
+    <form action="" method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="form-actions">
+            <button class="button" type="submit">{{ ui.apply }}</button>
+            <a class="muted-action" href="{% url 'chat' %}">{{ ui.reset }}</a>
+        </div>
+    </form>
+</section>
+{% endblock app_content %}

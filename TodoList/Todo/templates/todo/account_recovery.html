@@ -1,0 +1,17 @@
+{% extends 'todo/main.html' %}
+
+{% block content %}
+<div class="header-bar">
+    <h1>{{ ui.recover_account }}</h1>
+</div>
+
+<div class="card-body">
+    <p class="muted-text">{{ ui.recover_account_description }}</p>
+    <form action="" method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input class="button" type="submit" value="{{ ui.recover_account }}">
+        <small><p><a href="{% url 'login' %}">Login</a></p></small>
+    </form>
+</div>
+{% endblock content %}

@@ -386,7 +386,22 @@
         background: #f8fbf9;
         border: 1px solid #e4ece7;
         border-radius: 8px;
+        max-width: min(78%, 680px);
         padding: 12px;
+    }
+
+    .chat-bubble-own {
+        background: #eef8f5;
+        border-color: #cfe5dd;
+        justify-self: end;
+    }
+
+    .chat-bubble-partner {
+        justify-self: start;
+    }
+
+    .full-chat-feed .chat-bubble {
+        width: fit-content;
     }
 
     .chat-bubble p {
@@ -395,6 +410,22 @@
 
     .chat-bubble small {
         color: #687672;
+    }
+
+    .message-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .message-actions a {
+        color: #2f6f73;
+        font-weight: 700;
+        text-decoration: none;
+    }
+
+    .message-actions .danger-link {
+        color: #b64242;
     }
 
     .chat-form {
@@ -876,6 +907,15 @@
         grid-template-columns: minmax(0, 1fr) auto;
     }
 
+    .account-form {
+        align-items: start;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    }
+
+    .danger-zone {
+        border-color: #f2b8b8;
+    }
+
     .member-list {
         display: flex;
         flex-wrap: wrap;
@@ -915,6 +955,11 @@
         color: #eaf2ee;
     }
 
+    .theme-dark .chat-bubble-own {
+        background: #203633;
+        border-color: #3f6760;
+    }
+
     .theme-dark .mode-header p:not(.eyebrow),
     .theme-dark .muted-text,
     .theme-dark .stat-label,
@@ -930,6 +975,7 @@
 
     .theme-dark select,
     .theme-dark input[type=text],
+    .theme-dark input[type=email],
     .theme-dark input[type=password],
     .theme-dark textarea {
         background: #17201e;
@@ -997,6 +1043,14 @@
         color: #ff7777;
     }
 
+    .theme-dark .message-actions a {
+        color: #7fc7c1;
+    }
+
+    .theme-dark .message-actions .danger-link {
+        color: #ff7777;
+    }
+
     .theme-dark .danger-action {
         color: #ff7777;
     }
@@ -1004,6 +1058,10 @@
     .theme-dark .danger-button {
         background: #9f3a3a;
         border-color: #9f3a3a;
+    }
+
+    .theme-dark .danger-zone {
+        border-color: #6b3a3a;
     }
 
     .dashboard-hero {
@@ -1479,8 +1537,13 @@
             grid-template-columns: 1fr;
         }
 
-        .inline-settings-form {
+        .inline-settings-form,
+        .account-form {
             grid-template-columns: 1fr;
+        }
+
+        .chat-bubble {
+            max-width: 94%;
         }
     }
 

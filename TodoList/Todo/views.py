@@ -1,12 +1,12 @@
 from django.shortcuts import get_object_or_404, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.generic.list import ListView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.views.generic import TemplateView
 from django.contrib.auth.views import LoginView
 from django.views.generic.edit import FormView
-from django.contrib.auth import login
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -15,7 +15,11 @@ from django.utils import timezone
 from .forms import (
     CaseInsensitiveAuthenticationForm,
     CaseInsensitiveUserCreationForm,
+    ChatMessageEditForm,
     ChatMessageForm,
+    AccountDeleteForm,
+    AccountProfileForm,
+    AccountRecoveryForm,
     AddSpaceMemberForm,
     CoupleEventForm,
     CoupleSpaceForm,
@@ -23,6 +27,7 @@ from .forms import (
     SharedFileUpdateForm,
     TaskForm,
 )
+from django.contrib.auth.forms import PasswordChangeForm
 from .models import ChatMessage, CoupleEvent, CoupleSpace, SharedFile, Task
 from .security import decrypt_bytes
 
@@ -206,7 +211,10 @@ class ChatPage(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         active_space = add_space_context(self.request, context, 'chat')
-        context['chat_messages'] = ChatMessage.objects.filter(space=active_space)[:50]
+        latest_messages = ChatMessage.objects.filter(space=active_space).order_by('-id')[:50]
+        context['chat_messages'] = list(reversed(latest_messages))
+        latest_message = ChatMessage.objects.filter(space=active_space).order_by('-id').first()
+        context['latest_chat_message_id'] = latest_message.id if latest_message else 0
         context['chat_form'] = ChatMessageForm()
         return context
 
@@ -221,6 +229,9 @@ class SettingsPage(LoginRequiredMixin, TemplateView):
         context['language'] = self.request.session.get('language', 'en')
         context['space_form'] = CoupleSpaceForm()
         context['member_form'] = AddSpaceMemberForm()
+        context['profile_form'] = AccountProfileForm(instance=self.request.user)
+        context['password_form'] = PasswordChangeForm(self.request.user)
+        context['delete_account_form'] = AccountDeleteForm(self.request.user)
         context['members'] = active_space.members.order_by('username')
         return context
 
@@ -250,6 +261,29 @@ class SettingsPage(LoginRequiredMixin, TemplateView):
                 username = form.cleaned_data['username']
                 user = User.objects.get(username__iexact=username)
                 active_space.members.add(user)
+            return redirect('settings')
+
+        if action == 'profile':
+            form = AccountProfileForm(request.POST, instance=request.user)
+            if form.is_valid():
+                form.save()
+            return redirect('settings')
+
+        if action == 'password':
+            form = PasswordChangeForm(request.user, request.POST)
+            if form.is_valid():
+                user = form.save()
+                update_session_auth_hash(request, user)
+            return redirect('settings')
+
+        if action == 'deactivate_account':
+            form = AccountDeleteForm(request.user, request.POST)
+            if form.is_valid():
+                user = request.user
+                user.is_active = False
+                user.save(update_fields=['is_active'])
+                logout(request)
+                return redirect('login')
             return redirect('settings')
 
         theme = request.POST.get('theme', 'light')
@@ -330,6 +364,16 @@ class RegisterPage(FormView):
         return super(RegisterPage, self).get(*args, **kwargs)
 
 
+class AccountRecoveryPage(FormView):
+    template_name = 'todo/account_recovery.html'
+    form_class = AccountRecoveryForm
+    success_url = reverse_lazy('login')
+
+    def form_valid(self, form):
+        form.save()
+        return super().form_valid(form)
+
+
 class SharedFileCreate(LoginRequiredMixin, CreateView):
     model = SharedFile
     form_class = SharedFileForm
@@ -385,6 +429,26 @@ class ChatMessageCreate(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
+class ChatMessageUpdate(LoginRequiredMixin, UpdateView):
+    model = ChatMessage
+    form_class = ChatMessageEditForm
+    template_name = 'todo/chat_message_form.html'
+    success_url = reverse_lazy('chat')
+
+    def get_queryset(self):
+        return ChatMessage.objects.filter(space=get_active_space(self.request), user=self.request.user)
+
+
+class ChatMessageDelete(LoginRequiredMixin, DeleteView):
+    model = ChatMessage
+    context_object_name = 'message'
+    template_name = 'todo/chat_message_confirm_delete.html'
+    success_url = reverse_lazy('chat')
+
+    def get_queryset(self):
+        return ChatMessage.objects.filter(space=get_active_space(self.request), user=self.request.user)
+
+
 @login_required
 def download_chat_attachment(request, pk):
     message = get_object_or_404(ChatMessage, pk=pk, space=get_active_space(request))
@@ -394,6 +458,39 @@ def download_chat_attachment(request, pk):
     response = HttpResponse(decrypt_bytes(message.data), content_type=message.content_type or 'application/octet-stream')
     response['Content-Disposition'] = f'inline; filename="{message.file_name}"'
     return response
+
+
+@login_required
+def chat_notifications(request):
+    after_id = request.GET.get('after', '0')
+    try:
+        after_id = int(after_id)
+    except ValueError:
+        after_id = 0
+
+    messages = ChatMessage.objects.filter(
+        space=get_active_space(request),
+        id__gt=after_id,
+    ).exclude(user=request.user).order_by('id')[:10]
+
+    payload = []
+    for message in messages:
+        text = message.display_message
+        if not text and message.attachment_type != ChatMessage.TEXT:
+            text = dict(ChatMessage.ATTACHMENT_CHOICES).get(message.attachment_type, 'Attachment')
+
+        payload.append({
+            'id': message.id,
+            'author': message.user.username,
+            'message': text,
+            'attachment_type': message.attachment_type,
+        })
+
+    latest_message = ChatMessage.objects.filter(space=get_active_space(request)).order_by('-id').first()
+    return JsonResponse({
+        'latest_id': latest_message.id if latest_message else after_id,
+        'messages': payload,
+    })
 
 
 @login_required

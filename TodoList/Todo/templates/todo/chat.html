@@ -7,12 +7,15 @@
         <h1>{{ ui.chat_title }}</h1>
         <p>{{ ui.chat_description }}</p>
     </div>
+    <button class="mini-action" type="button" data-enable-notifications>
+        {{ ui.enable_notifications }}
+    </button>
 </section>
 
-<section class="hub-panel chat-mode-panel">
+<section class="hub-panel chat-mode-panel" data-latest-message-id="{{ latest_chat_message_id }}" data-notification-url="{% url 'chat-notifications' %}">
     <div class="chat-feed full-chat-feed">
         {% for message in chat_messages %}
-            <div class="chat-bubble">
+            <div class="chat-bubble {% if message.user == request.user %}chat-bubble-own{% else %}chat-bubble-partner{% endif %}">
                 <strong>{{ message.user|title }}</strong>
                 {% if message.display_message %}<p>{{ message.display_message }}</p>{% endif %}
                 {% if message.data and message.attachment_type == 'photo' %}
@@ -26,6 +29,14 @@
                     </button>
                 {% endif %}
                 <small>{{ message.created|date:"M j, H:i" }}</small>
+                {% if message.user == request.user %}
+                    <div class="message-actions">
+                        {% if message.display_message %}
+                            <a href="{% url 'chat-message-edit' message.id %}">{{ ui.edit }}</a>
+                        {% endif %}
+                        <a class="danger-link" href="{% url 'chat-message-delete' message.id %}">{{ ui.delete }}</a>
+                    </div>
+                {% endif %}
             </div>
         {% empty %}
             <div class="empty-state">
@@ -82,9 +93,55 @@
     const chatForm = document.querySelector('.chat-compose');
     const recordCircleButton = document.querySelector('[data-record-circle]');
     const recordStatus = document.querySelector('[data-record-status]');
+    const notificationsButton = document.querySelector('[data-enable-notifications]');
+    const chatPanel = document.querySelector('[data-latest-message-id]');
+    let latestMessageId = Number(chatPanel?.dataset.latestMessageId || 0);
     let mediaRecorder = null;
     let recordedChunks = [];
     let recordingStream = null;
+
+    function updateNotificationsButton() {
+        if (!notificationsButton || !('Notification' in window)) return;
+        if (Notification.permission === 'granted') {
+            notificationsButton.textContent = '{{ ui.notifications_enabled|escapejs }}';
+            notificationsButton.disabled = true;
+        }
+    }
+
+    async function requestNotifications() {
+        if (!('Notification' in window)) return;
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') updateNotificationsButton();
+    }
+
+    async function pollChatNotifications() {
+        if (!chatPanel || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+        const url = `${chatPanel.dataset.notificationUrl}?after=${latestMessageId}`;
+        const response = await fetch(url, {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        latestMessageId = Number(data.latest_id || latestMessageId);
+        (data.messages || []).forEach((message) => {
+            const notification = new Notification(`OurHome: ${message.author}`, {
+                body: message.message || 'New message',
+                tag: `ourhome-chat-${message.id}`,
+            });
+            notification.onclick = () => {
+                window.focus();
+                window.location.href = '{% url "chat" %}';
+                notification.close();
+            };
+        });
+    }
+
+    notificationsButton?.addEventListener('click', requestNotifications);
+    updateNotificationsButton();
+    window.setInterval(pollChatNotifications, 5000);
 
     if (attachmentTypeInput && !attachmentTypeInput.value) {
         attachmentTypeInput.value = 'text';

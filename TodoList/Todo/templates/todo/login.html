@@ -12,6 +12,7 @@
         {{ form.as_p }}
         <input class = "button" type="submit" value="Login">
         <small><p>Don't have an account yet? <a href="{% url 'register' %}">Register new account</a></p></small>
+        <small><p><a href="{% url 'recover-account' %}">Recover deactivated account</a></p></small>
     </form>
 </div>
 

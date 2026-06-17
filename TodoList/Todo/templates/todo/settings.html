@@ -114,6 +114,62 @@
     </form>
 </section>
 
+<section class="hub-panel settings-panel">
+    <div class="panel-heading">
+        <div>
+            <p class="eyebrow">{{ ui.account_title }}</p>
+            <h2>{{ ui.account_title }}</h2>
+            <p class="muted-text">{{ ui.account_description }}</p>
+        </div>
+    </div>
+
+    <div class="settings-form">
+        <div class="settings-group">
+            <div>
+                <h2>{{ ui.profile_title }}</h2>
+                <p class="muted-text">{{ ui.profile_description }}</p>
+            </div>
+            <form class="inline-settings-form account-form" action="{% url 'settings' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="settings_action" value="profile">
+                {{ profile_form.username }}
+                {{ profile_form.email }}
+                {{ profile_form.first_name }}
+                <button class="button" type="submit">{{ ui.update_profile }}</button>
+            </form>
+        </div>
+
+        <div class="settings-group">
+            <div>
+                <h2>{{ ui.password_title }}</h2>
+                <p class="muted-text">{{ ui.password_description }}</p>
+            </div>
+            <form class="inline-settings-form account-form" action="{% url 'settings' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="settings_action" value="password">
+                {{ password_form.old_password }}
+                {{ password_form.new_password1 }}
+                {{ password_form.new_password2 }}
+                <button class="button" type="submit">{{ ui.change_password }}</button>
+            </form>
+        </div>
+
+        <div class="settings-group danger-zone">
+            <div>
+                <h2>{{ ui.delete_account_title }}</h2>
+                <p class="muted-text">{{ ui.delete_account_description }}</p>
+                <p class="muted-text">{{ ui.delete_account_warning }}</p>
+            </div>
+            <form class="inline-settings-form account-form" action="{% url 'settings' %}" method="post">
+                {% csrf_token %}
+                <input type="hidden" name="settings_action" value="deactivate_account">
+                {{ delete_account_form.password }}
+                <button class="button danger-button" type="submit">{{ ui.deactivate_account }}</button>
+            </form>
+        </div>
+    </div>
+</section>
+
 <script>
     const settingsForm = document.querySelector('[data-autosubmit-settings]');
     if (settingsForm) {

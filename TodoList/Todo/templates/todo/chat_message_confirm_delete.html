@@ -1,0 +1,24 @@
+{% extends 'todo/app_shell.html' %}
+
+{% block app_content %}
+<section class="mode-header">
+    <div>
+        <p class="eyebrow">{{ ui.chat_eyebrow }}</p>
+        <h1>{{ ui.delete }}</h1>
+        {% if message.display_message %}
+            <p>{{ message.display_message }}</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="hub-panel settings-panel">
+    <form action="" method="post">
+        {% csrf_token %}
+        <p class="muted-text">{{ ui.delete_message_confirm }}</p>
+        <div class="form-actions">
+            <button class="button danger-button" type="submit">{{ ui.delete }}</button>
+            <a class="muted-action" href="{% url 'chat' %}">{{ ui.reset }}</a>
+        </div>
+    </form>
+</section>
+{% endblock app_content %}

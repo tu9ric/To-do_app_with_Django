@@ -1,7 +1,10 @@
 from django.urls import path
 from .views import (
     ChatMessageCreate,
+    ChatMessageDelete,
+    ChatMessageUpdate,
     ChatPage,
+    AccountRecoveryPage,
     CoupleEventCreate,
     CoupleEventList,
     CustomLoginView,
@@ -17,6 +20,7 @@ from .views import (
     TaskDetail,
     TaskList,
     TaskUpdate,
+    chat_notifications,
     download_chat_attachment,
     download_shared_file,
 )
@@ -35,9 +39,13 @@ urlpatterns = [
     path('events/create/', CoupleEventCreate.as_view(), name='event-create'),
     path('chat/', ChatPage.as_view(), name='chat'),
     path('chat/send/', ChatMessageCreate.as_view(), name='chat-send'),
+    path('chat/<int:pk>/edit/', ChatMessageUpdate.as_view(), name='chat-message-edit'),
+    path('chat/<int:pk>/delete/', ChatMessageDelete.as_view(), name='chat-message-delete'),
     path('chat/attachments/<int:pk>/', download_chat_attachment, name='chat-attachment'),
+    path('chat/notifications/', chat_notifications, name='chat-notifications'),
     path('settings/', SettingsPage.as_view(), name='settings'),
     path('login/', CustomLoginView.as_view(), name = 'login'),
+    path('recover-account/', AccountRecoveryPage.as_view(), name='recover-account'),
     path('logout/', LogoutView.as_view(next_page='login'), name = 'logout'),
     path('register/', RegisterPage.as_view(), name = 'register'),
     path('task/<int:pk>', TaskDetail.as_view(), name = 'task-detail'),

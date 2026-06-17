@@ -172,6 +172,58 @@ class CoupleHomeFeatureTests(TestCase):
         self.assertContains(response, 'Общее пространство')
         self.assertContains(response, 'Добавить пользователя')
 
+    def test_account_profile_can_be_updated(self):
+        response = self.client.post(reverse('settings'), {
+            'settings_action': 'profile',
+            'username': 'katya',
+            'email': 'katya@example.com',
+            'first_name': 'Katya',
+        })
+
+        self.assertRedirects(response, reverse('settings'))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, 'katya')
+        self.assertEqual(self.user.email, 'katya@example.com')
+        self.assertEqual(self.user.first_name, 'Katya')
+
+    def test_account_password_can_be_changed(self):
+        response = self.client.post(reverse('settings'), {
+            'settings_action': 'password',
+            'old_password': 'pass12345',
+            'new_password1': 'NewStrongPass123',
+            'new_password2': 'NewStrongPass123',
+        })
+
+        self.assertRedirects(response, reverse('settings'))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('NewStrongPass123'))
+
+        response = self.client.get(reverse('settings'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_account_can_be_deactivated_and_recovered(self):
+        response = self.client.post(reverse('settings'), {
+            'settings_action': 'deactivate_account',
+            'password': 'pass12345',
+        })
+
+        self.assertRedirects(response, reverse('login'))
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertFalse(self.client.login(username='kate', password='pass12345'))
+
+        response = self.client.post(reverse('recover-account'), {
+            'username': 'kate',
+            'password1': 'RecoveredPass123',
+            'password2': 'RecoveredPass123',
+        })
+
+        self.assertRedirects(response, reverse('login'))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertTrue(self.user.check_password('RecoveredPass123'))
+        self.assertTrue(self.client.login(username='kate', password='RecoveredPass123'))
+
     def test_group_member_can_see_shared_space_tasks(self):
         User.objects.create_user(username='temka', password='pass12345')
 
@@ -297,6 +349,47 @@ class CoupleHomeFeatureTests(TestCase):
         self.assertNotEqual(message.message, 'Dinner report: soup and tea')
         self.assertEqual(message.display_message, 'Dinner report: soup and tea')
 
+    def test_chat_aligns_own_and_partner_messages(self):
+        partner = User.objects.create_user(username='partner', password='pass12345')
+        space = CoupleSpace.objects.create(name='Shared chat', owner=self.user)
+        space.members.add(self.user)
+        space.members.add(partner)
+        ChatMessage.objects.create(user=self.user, space=space, message='My note')
+        ChatMessage.objects.create(user=partner, space=space, message='Partner note')
+
+        response = self.client.get(reverse('chat'))
+
+        self.assertContains(response, 'chat-bubble-own')
+        self.assertContains(response, 'chat-bubble-partner')
+
+    def test_chat_renders_old_messages_before_new_messages(self):
+        space = CoupleSpace.objects.create(name='Chronological chat', owner=self.user)
+        space.members.add(self.user)
+        ChatMessage.objects.create(user=self.user, space=space, message='Older message')
+        ChatMessage.objects.create(user=self.user, space=space, message='Newer message')
+
+        response = self.client.get(reverse('chat'))
+        html = response.content.decode(response.charset)
+
+        self.assertLess(html.index('Older message'), html.index('Newer message'))
+
+    def test_chat_notifications_return_only_partner_messages(self):
+        partner = User.objects.create_user(username='partner', password='pass12345')
+        space = CoupleSpace.objects.create(name='Notification chat', owner=self.user)
+        space.members.add(self.user)
+        space.members.add(partner)
+        own_message = ChatMessage.objects.create(user=self.user, space=space, message='My own note')
+        partner_message = ChatMessage.objects.create(user=partner, space=space, message='Incoming note')
+
+        response = self.client.get(reverse('chat-notifications'), {'after': own_message.id})
+        payload = response.json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['latest_id'], partner_message.id)
+        self.assertEqual(len(payload['messages']), 1)
+        self.assertEqual(payload['messages'][0]['author'], 'partner')
+        self.assertEqual(payload['messages'][0]['message'], 'Incoming note')
+
     def test_photo_message_can_be_sent_and_rendered(self):
         response = self.client.post(reverse('chat-send'), {
             'message': 'Look at this',
@@ -335,3 +428,53 @@ class CoupleHomeFeatureTests(TestCase):
         response = self.client.get(reverse('chat-attachment', args=[message.id]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_chat_message_can_be_edited_by_author(self):
+        self.client.post(reverse('chat-send'), {
+            'message': 'Original message',
+        })
+        message = ChatMessage.objects.get(user=self.user)
+
+        response = self.client.post(reverse('chat-message-edit', args=[message.id]), {
+            'message': 'Edited message',
+        })
+
+        self.assertRedirects(response, reverse('chat'))
+        message.refresh_from_db()
+        self.assertNotEqual(message.message, 'Edited message')
+        self.assertEqual(message.display_message, 'Edited message')
+
+        response = self.client.get(reverse('chat'))
+        self.assertContains(response, 'Edited message')
+
+    def test_chat_message_can_be_deleted_by_author(self):
+        self.client.post(reverse('chat-send'), {
+            'message': 'Delete me',
+        })
+        message = ChatMessage.objects.get(user=self.user)
+
+        response = self.client.post(reverse('chat-message-delete', args=[message.id]))
+
+        self.assertRedirects(response, reverse('chat'))
+        self.assertFalse(ChatMessage.objects.filter(id=message.id).exists())
+
+    def test_chat_message_cannot_be_edited_by_another_member(self):
+        User.objects.create_user(username='other-member', password='pass12345')
+        self.client.post(reverse('settings'), {
+            'settings_action': 'add_member',
+            'username': 'other-member',
+        })
+        self.client.post(reverse('chat-send'), {
+            'message': 'Private author edit',
+        })
+        message = ChatMessage.objects.get(user=self.user)
+        self.client.logout()
+        self.client.login(username='other-member', password='pass12345')
+
+        response = self.client.post(reverse('chat-message-edit', args=[message.id]), {
+            'message': 'Hijacked',
+        })
+
+        self.assertEqual(response.status_code, 404)
+        message.refresh_from_db()
+        self.assertEqual(message.display_message, 'Private author edit')
