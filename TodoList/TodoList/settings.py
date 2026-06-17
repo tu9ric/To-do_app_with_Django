@@ -26,6 +26,10 @@ if os.environ.get('USE_PYSQLITE3', 'False').lower() == 'true':
         raise ImproperlyConfigured('Install pysqlite3-binary or set USE_PYSQLITE3=False.') from exc
     sys.modules['sqlite3'] = pysqlite3
 
+    from django.db.backends.sqlite3.features import DatabaseFeatures
+
+    DatabaseFeatures.max_query_params = property(lambda self: 999)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
