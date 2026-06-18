@@ -385,11 +385,28 @@ const messageInput = document.querySelector('textarea[name="message"]');
         button?.addEventListener('contextmenu', (event) => event.preventDefault());
     }
 
+    function isSelectionAllowedNode(node) {
+        const element = node?.nodeType === Node.ELEMENT_NODE
+            ? node
+            : node?.parentElement;
+        return Boolean(element?.closest('.chat-message-text, .chat-message-field'));
+    }
+
+    document.addEventListener('selectstart', (event) => {
+        if (!event.target.closest('.chat-message-text, .chat-message-field')) {
+            event.preventDefault();
+        }
+    }, { capture: true });
+
     document.addEventListener('selectionchange', () => {
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed) return;
-        const anchorElement = selection.anchorNode?.parentElement;
-        if (anchorElement?.closest('.chat-message-text, .chat-message-field')) return;
+        if (
+            isSelectionAllowedNode(selection.anchorNode)
+            && isSelectionAllowedNode(selection.focusNode)
+        ) {
+            return;
+        }
         selection.removeAllRanges();
     });
 

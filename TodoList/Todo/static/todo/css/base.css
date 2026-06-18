@@ -462,6 +462,24 @@
         height: calc(100dvh - clamp(20px, 4vw, 56px));
         min-height: 0;
         overflow: hidden;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    .chat-layout * {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    .chat-layout .chat-message-text,
+    .chat-layout .chat-message-text *,
+    .chat-layout .chat-message-field,
+    .chat-layout .chat-message-field textarea {
+        -webkit-touch-callout: default;
+        -webkit-user-select: text;
+        user-select: text;
     }
 
     .sidebar {
