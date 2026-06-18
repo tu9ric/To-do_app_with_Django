@@ -242,6 +242,50 @@ class CoupleHomeFeatureTests(TestCase):
         self.assertContains(response, 'Shared groceries')
         self.assertContains(response, 'Space')
 
+    def test_space_owner_can_remove_member(self):
+        member = User.objects.create_user(username='member', password='pass12345')
+        self.client.get(reverse('settings'))
+        space = CoupleSpace.objects.get(owner=self.user)
+        space.members.add(member)
+
+        response = self.client.post(reverse('settings'), {
+            'settings_action': 'remove_member',
+            'member_id': member.id,
+        })
+
+        self.assertRedirects(response, reverse('settings'))
+        self.assertFalse(space.members.filter(id=member.id).exists())
+        self.assertTrue(space.members.filter(id=self.user.id).exists())
+
+    def test_space_member_cannot_remove_another_member(self):
+        member = User.objects.create_user(username='member', password='pass12345')
+        other_member = User.objects.create_user(username='other-member', password='pass12345')
+        self.client.get(reverse('settings'))
+        space = CoupleSpace.objects.get(owner=self.user)
+        space.members.add(member, other_member)
+        self.client.logout()
+        self.client.login(username='member', password='pass12345')
+
+        response = self.client.post(reverse('settings'), {
+            'settings_action': 'remove_member',
+            'member_id': other_member.id,
+        })
+
+        self.assertRedirects(response, reverse('settings'))
+        self.assertTrue(space.members.filter(id=other_member.id).exists())
+
+    def test_space_owner_cannot_remove_themselves(self):
+        self.client.get(reverse('settings'))
+        space = CoupleSpace.objects.get(owner=self.user)
+
+        response = self.client.post(reverse('settings'), {
+            'settings_action': 'remove_member',
+            'member_id': self.user.id,
+        })
+
+        self.assertRedirects(response, reverse('settings'))
+        self.assertTrue(space.members.filter(id=self.user.id).exists())
+
     def test_shared_file_can_be_uploaded_and_downloaded(self):
         upload = SimpleUploadedFile(
             'ticket.txt',

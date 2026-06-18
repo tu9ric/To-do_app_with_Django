@@ -1,7 +1,7 @@
 {% extends 'todo/app_shell.html' %}
 
 {% block app_content %}
-<section class="mode-header">
+<section class="mode-header chat-mode-header">
     <div>
         <p class="eyebrow">{{ ui.chat_eyebrow }}</p>
         <h1>{{ ui.chat_title }}</h1>
@@ -48,36 +48,36 @@
 
     <form class="chat-form chat-compose" action="{% url 'chat-send' %}" method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <div class="chat-compose-fields">
-            {{ chat_form.message }}
-            <div class="emoji-row" aria-label="Emoji picker">
-                <button type="button" data-emoji="❤️">❤️</button>
-                <button type="button" data-emoji="😂">😂</button>
-                <button type="button" data-emoji="🥰">🥰</button>
-                <button type="button" data-emoji="👍">👍</button>
-                <button type="button" data-emoji="🔥">🔥</button>
-                <button type="button" data-emoji="✨">✨</button>
+        {{ chat_form.attachment_type }}
+        <div class="chat-compose-row">
+            <button class="chat-icon-button" type="button" data-attach-file aria-label="Attach file" title="Attach file">
+                <span aria-hidden="true">&#128206;</span>
+            </button>
+            <div class="chat-message-field">
+                {{ chat_form.message }}
             </div>
-            <div class="chat-type-picker" data-chat-type-picker>
-                {{ chat_form.attachment_type }}
-                <button class="selected" type="button" data-chat-type="text">Text</button>
-                <button type="button" data-chat-type="photo">Photo</button>
-                <button type="button" data-chat-type="voice">Voice</button>
-                <button type="button" data-chat-type="video_circle">Circle</button>
-            </div>
-            <div class="chat-attachment-controls" data-chat-upload hidden>
-                {{ chat_form.upload }}
-            </div>
-            <div class="record-tools">
-                <button class="record-circle-button" type="button" data-record-circle>
-                    Hold to record circle
-                </button>
-                <span class="record-status" data-record-status></span>
-            </div>
+            <button class="chat-icon-button record-voice-button" type="button" data-record-voice aria-label="Hold to record voice message" title="Hold to record voice message">
+                <span aria-hidden="true">&#127908;</span>
+            </button>
+            <button class="chat-icon-button record-circle-button" type="button" data-record-circle aria-label="Hold to record video circle" title="Hold to record video circle">
+                <span aria-hidden="true">&#9673;</span>
+            </button>
+            <button class="chat-send-button" type="submit" aria-label="{{ ui.send }}" title="{{ ui.send }}">
+                <span aria-hidden="true">&#10148;</span>
+            </button>
         </div>
-        <button class="button" type="submit">{{ ui.send }}</button>
+        <div class="chat-attachment-controls" data-chat-upload hidden>
+            {{ chat_form.upload }}
+            <span data-selected-file></span>
+        </div>
+        <span class="record-status" data-record-status></span>
     </form>
 </section>
+
+<div class="circle-record-preview" data-circle-preview hidden>
+    <video muted autoplay playsinline></video>
+    <span></span>
+</div>
 
 <div class="floating-video-circle" hidden>
     <video controls autoplay playsinline></video>
@@ -89,16 +89,44 @@
     const attachmentTypeInput = document.querySelector('input[name="attachment_type"]');
     const uploadWrap = document.querySelector('[data-chat-upload]');
     const uploadInput = document.querySelector('input[name="upload"]');
-    const typeButtons = document.querySelectorAll('[data-chat-type]');
+    const attachFileButton = document.querySelector('[data-attach-file]');
+    const selectedFile = document.querySelector('[data-selected-file]');
     const chatForm = document.querySelector('.chat-compose');
+    const recordVoiceButton = document.querySelector('[data-record-voice]');
     const recordCircleButton = document.querySelector('[data-record-circle]');
     const recordStatus = document.querySelector('[data-record-status]');
+    const circlePreview = document.querySelector('[data-circle-preview]');
+    const circlePreviewVideo = circlePreview?.querySelector('video');
+    const circlePreviewStatus = circlePreview?.querySelector('span');
     const notificationsButton = document.querySelector('[data-enable-notifications]');
     const chatPanel = document.querySelector('[data-latest-message-id]');
     let latestMessageId = Number(chatPanel?.dataset.latestMessageId || 0);
     let mediaRecorder = null;
     let recordedChunks = [];
     let recordingStream = null;
+    let recordingKind = null;
+    let requestedRecordingKind = null;
+
+    function updateChatViewport() {
+        if (window.innerWidth > 820) return;
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        document.documentElement.style.setProperty('--chat-viewport-height', `${viewportHeight}px`);
+    }
+
+    function scrollChatToBottom() {
+        const feed = document.querySelector('.full-chat-feed');
+        if (feed) feed.scrollTop = feed.scrollHeight;
+    }
+
+    updateChatViewport();
+    scrollChatToBottom();
+    window.visualViewport?.addEventListener('resize', updateChatViewport);
+    window.addEventListener('orientationchange', () => {
+        window.setTimeout(() => {
+            updateChatViewport();
+            scrollChatToBottom();
+        }, 150);
+    });
 
     function updateNotificationsButton() {
         if (!notificationsButton || !('Notification' in window)) return;
@@ -147,27 +175,27 @@
         attachmentTypeInput.value = 'text';
     }
 
-    typeButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-            typeButtons.forEach((item) => item.classList.remove('selected'));
-            button.classList.add('selected');
+    attachFileButton?.addEventListener('click', () => uploadInput?.click());
 
-            const selectedType = button.dataset.chatType;
-            if (attachmentTypeInput) attachmentTypeInput.value = selectedType;
-            if (uploadWrap) uploadWrap.hidden = selectedType === 'text';
-            if (uploadInput && selectedType === 'text') uploadInput.value = '';
-        });
-    });
+    uploadInput?.addEventListener('change', () => {
+        const file = uploadInput.files?.[0];
+        if (!file) return;
 
-    document.querySelectorAll('[data-emoji]').forEach((button) => {
-        button.addEventListener('click', () => {
-            if (!messageInput) return;
-            const start = messageInput.selectionStart || messageInput.value.length;
-            const end = messageInput.selectionEnd || messageInput.value.length;
-            messageInput.value = messageInput.value.slice(0, start) + button.dataset.emoji + messageInput.value.slice(end);
-            messageInput.focus();
-            messageInput.selectionStart = messageInput.selectionEnd = start + button.dataset.emoji.length;
-        });
+        let attachmentType = '';
+        if (file.type.startsWith('image/')) attachmentType = 'photo';
+        if (file.type.startsWith('audio/')) attachmentType = 'voice';
+        if (file.type.startsWith('video/')) attachmentType = 'video_circle';
+
+        if (!attachmentType) {
+            uploadInput.value = '';
+            if (recordStatus) recordStatus.textContent = 'Choose a photo, audio, or video file.';
+            return;
+        }
+
+        if (attachmentTypeInput) attachmentTypeInput.value = attachmentType;
+        if (uploadWrap) uploadWrap.hidden = false;
+        if (selectedFile) selectedFile.textContent = file.name;
+        if (recordStatus) recordStatus.textContent = '';
     });
 
     const floatingVideo = document.querySelector('.floating-video-circle');
@@ -190,83 +218,127 @@
         floatingVideo.hidden = true;
     });
 
-    async function startCircleRecording() {
+    async function startRecording(kind) {
         if (!navigator.mediaDevices || !window.MediaRecorder || mediaRecorder?.state === 'recording') {
             if (recordStatus) recordStatus.textContent = 'Recording is not available in this browser.';
             return;
         }
 
         try {
-            recordingStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            recordingKind = kind;
+            const constraints = kind === 'voice'
+                ? { audio: true }
+                : { video: { facingMode: 'user' }, audio: true };
+            recordingStream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (requestedRecordingKind !== kind) {
+                recordingStream.getTracks().forEach((track) => track.stop());
+                recordingStream = null;
+                recordingKind = null;
+                return;
+            }
             recordedChunks = [];
-            const options = MediaRecorder.isTypeSupported('video/webm') ? { mimeType: 'video/webm' } : {};
+            const preferredMimeType = kind === 'voice' ? 'audio/webm' : 'video/webm';
+            const options = MediaRecorder.isTypeSupported(preferredMimeType)
+                ? { mimeType: preferredMimeType }
+                : {};
             mediaRecorder = new MediaRecorder(recordingStream, options);
             mediaRecorder.addEventListener('dataavailable', (event) => {
                 if (event.data.size > 0) recordedChunks.push(event.data);
             });
-            mediaRecorder.addEventListener('stop', sendCircleRecording);
+            mediaRecorder.addEventListener('stop', sendRecordedMedia);
             mediaRecorder.start();
-            recordCircleButton?.classList.add('recording');
-            if (recordStatus) recordStatus.textContent = 'Recording... release to send';
+
+            const activeButton = kind === 'voice' ? recordVoiceButton : recordCircleButton;
+            activeButton?.classList.add('recording');
+            if (recordStatus) {
+                recordStatus.textContent = kind === 'voice'
+                    ? 'Recording voice... release to send'
+                    : 'Recording circle... release to send';
+            }
+
+            if (kind === 'video_circle' && circlePreview && circlePreviewVideo) {
+                circlePreviewVideo.srcObject = recordingStream;
+                circlePreview.hidden = false;
+                if (circlePreviewStatus) circlePreviewStatus.textContent = 'Release to send';
+            }
         } catch (error) {
-            if (recordStatus) recordStatus.textContent = 'Camera or microphone access was denied.';
+            recordingKind = null;
+            if (recordStatus) {
+                recordStatus.textContent = kind === 'voice'
+                    ? 'Microphone access was denied.'
+                    : 'Camera or microphone access was denied.';
+            }
         }
     }
 
-    function stopCircleRecording() {
+    function stopRecording() {
+        requestedRecordingKind = null;
         if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
         mediaRecorder.stop();
+        recordVoiceButton?.classList.remove('recording');
         recordCircleButton?.classList.remove('recording');
         if (recordingStream) {
             recordingStream.getTracks().forEach((track) => track.stop());
             recordingStream = null;
         }
+        if (circlePreviewVideo) circlePreviewVideo.srcObject = null;
+        if (circlePreview) circlePreview.hidden = true;
     }
 
-    async function sendCircleRecording() {
+    async function sendRecordedMedia() {
         if (!chatForm || recordedChunks.length === 0) {
             if (recordStatus) recordStatus.textContent = '';
+            recordingKind = null;
             return;
         }
 
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const kind = recordingKind;
+        const mimeType = mediaRecorder?.mimeType || (kind === 'voice' ? 'audio/webm' : 'video/webm');
+        const extension = mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const blob = new Blob(recordedChunks, { type: mimeType });
         const formData = new FormData(chatForm);
-        formData.set('attachment_type', 'video_circle');
+        formData.set('attachment_type', kind);
         formData.set('message', messageInput?.value || '');
-        formData.set('upload', blob, `circle-${Date.now()}.webm`);
+        formData.set('upload', blob, `${kind}-${Date.now()}.${extension}`);
 
         if (recordStatus) recordStatus.textContent = 'Sending...';
 
-        const response = await fetch(chatForm.action, {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
+        try {
+            const response = await fetch(chatForm.action, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
 
-        if (response.ok || response.redirected) {
-            window.location.href = response.url || chatForm.action.replace('/send/', '/');
-        } else if (recordStatus) {
-            recordStatus.textContent = 'Could not send recording.';
+            if (response.ok || response.redirected) {
+                window.location.href = response.url || chatForm.action.replace('/send/', '/');
+            } else if (recordStatus) {
+                recordStatus.textContent = 'Could not send recording.';
+            }
+        } finally {
+            recordingKind = null;
         }
     }
 
-    recordCircleButton?.addEventListener('pointerdown', (event) => {
-        event.preventDefault();
-        recordCircleButton.setPointerCapture(event.pointerId);
-        startCircleRecording();
-    });
+    function bindHoldToRecord(button, kind) {
+        button?.addEventListener('pointerdown', (event) => {
+            event.preventDefault();
+            button.setPointerCapture(event.pointerId);
+            requestedRecordingKind = kind;
+            startRecording(kind);
+        });
+        button?.addEventListener('pointerup', (event) => {
+            event.preventDefault();
+            stopRecording();
+        });
+        button?.addEventListener('pointercancel', stopRecording);
+        button?.addEventListener('lostpointercapture', stopRecording);
+    }
 
-    recordCircleButton?.addEventListener('pointerup', (event) => {
-        event.preventDefault();
-        stopCircleRecording();
-    });
-
-    recordCircleButton?.addEventListener('pointercancel', stopCircleRecording);
-    recordCircleButton?.addEventListener('pointerleave', (event) => {
-        if (mediaRecorder?.state === 'recording' && event.buttons === 0) stopCircleRecording();
-    });
+    bindHoldToRecord(recordVoiceButton, 'voice');
+    bindHoldToRecord(recordCircleButton, 'video_circle');
 </script>
 {% endblock app_content %}

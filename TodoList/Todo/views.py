@@ -263,6 +263,13 @@ class SettingsPage(LoginRequiredMixin, TemplateView):
                 active_space.members.add(user)
             return redirect('settings')
 
+        if action == 'remove_member':
+            if active_space.owner_id == request.user.id:
+                member = active_space.members.filter(id=request.POST.get('member_id')).first()
+                if member and member.id != active_space.owner_id:
+                    active_space.members.remove(member)
+            return redirect('settings')
+
         if action == 'profile':
             form = AccountProfileForm(request.POST, instance=request.user)
             if form.is_valid():

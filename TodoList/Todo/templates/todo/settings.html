@@ -42,7 +42,20 @@
             </div>
             <div class="member-list">
                 {% for member in members %}
-                    <span>{{ member.username }}</span>
+                    <div class="member-item">
+                        <span>
+                            {{ member.username }}
+                            {% if member == active_space.owner %}<small>{{ ui.space_owner }}</small>{% endif %}
+                        </span>
+                        {% if request.user == active_space.owner and member != active_space.owner %}
+                            <form action="{% url 'settings' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="settings_action" value="remove_member">
+                                <input type="hidden" name="member_id" value="{{ member.id }}">
+                                <button class="member-remove-button" type="submit">{{ ui.remove_member }}</button>
+                            </form>
+                        {% endif %}
+                    </div>
                 {% endfor %}
             </div>
         </div>
@@ -114,7 +127,7 @@
     </form>
 </section>
 
-<section class="hub-panel settings-panel">
+<section class="hub-panel settings-panel account-settings-panel">
     <div class="panel-heading">
         <div>
             <p class="eyebrow">{{ ui.account_title }}</p>
@@ -129,7 +142,7 @@
                 <h2>{{ ui.profile_title }}</h2>
                 <p class="muted-text">{{ ui.profile_description }}</p>
             </div>
-            <form class="inline-settings-form account-form" action="{% url 'settings' %}" method="post">
+            <form class="account-form" action="{% url 'settings' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="settings_action" value="profile">
                 {{ profile_form.username }}
@@ -144,7 +157,7 @@
                 <h2>{{ ui.password_title }}</h2>
                 <p class="muted-text">{{ ui.password_description }}</p>
             </div>
-            <form class="inline-settings-form account-form" action="{% url 'settings' %}" method="post">
+            <form class="account-form" action="{% url 'settings' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="settings_action" value="password">
                 {{ password_form.old_password }}
@@ -160,7 +173,7 @@
                 <p class="muted-text">{{ ui.delete_account_description }}</p>
                 <p class="muted-text">{{ ui.delete_account_warning }}</p>
             </div>
-            <form class="inline-settings-form account-form" action="{% url 'settings' %}" method="post">
+            <form class="account-form account-danger-form" action="{% url 'settings' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="settings_action" value="deactivate_account">
                 {{ delete_account_form.password }}

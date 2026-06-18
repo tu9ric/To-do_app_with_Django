@@ -1,14 +1,21 @@
 {% extends 'todo/main.html' %}
 
 {% block content %}
-<div class="app-layout">
+<div class="app-layout {% if active_nav == 'chat' %}chat-layout{% endif %}">
     <aside class="sidebar">
-        <div class="sidebar-brand">
-            <span class="brand-mark">OH</span>
-            <div>
-                <strong>OurHome</strong>
-                <small>{{ ui.brand_subtitle }}</small>
+        <div class="sidebar-top">
+            <div class="sidebar-brand">
+                <span class="brand-mark">OH</span>
+                <div>
+                    <strong>OurHome</strong>
+                    <small>{{ ui.brand_subtitle }}</small>
+                </div>
             </div>
+
+            <form class="mobile-logout" action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit">{{ ui.logout }}</button>
+            </form>
         </div>
 
         {% if active_space %}
@@ -51,7 +58,7 @@
         </form>
     </aside>
 
-    <main class="app-main">
+    <main class="app-main {% if active_nav == 'chat' %}chat-main{% endif %}">
         {% block app_content %}{% endblock app_content %}
     </main>
 </div>
