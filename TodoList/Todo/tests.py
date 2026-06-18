@@ -201,6 +201,13 @@ class CoupleHomeFeatureTests(TestCase):
         response = self.client.get(reverse('settings'))
         self.assertEqual(response.status_code, 200)
 
+    def test_settings_password_field_does_not_autofocus(self):
+        response = self.client.get(reverse('settings'))
+        password_field = response.context['password_form'].fields['old_password']
+
+        self.assertNotIn('autofocus', password_field.widget.attrs)
+        self.assertEqual(password_field.widget.attrs['autocomplete'], 'current-password')
+
     def test_account_can_be_deactivated_and_recovered(self):
         response = self.client.post(reverse('settings'), {
             'settings_action': 'deactivate_account',

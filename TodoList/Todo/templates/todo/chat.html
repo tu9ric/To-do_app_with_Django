@@ -76,7 +76,10 @@
 
 <div class="circle-record-preview" data-circle-preview hidden>
     <video muted autoplay playsinline></video>
-    <span></span>
+    <div class="circle-cancel-hint" data-circle-cancel-hint>
+        <span aria-hidden="true">←</span>
+        <strong>Slide left to cancel</strong>
+    </div>
 </div>
 
 <div class="floating-video-circle" hidden>
@@ -97,7 +100,7 @@
     const recordStatus = document.querySelector('[data-record-status]');
     const circlePreview = document.querySelector('[data-circle-preview]');
     const circlePreviewVideo = circlePreview?.querySelector('video');
-    const circlePreviewStatus = circlePreview?.querySelector('span');
+    const circleCancelHint = document.querySelector('[data-circle-cancel-hint]');
     const notificationsButton = document.querySelector('[data-enable-notifications]');
     const chatPanel = document.querySelector('[data-latest-message-id]');
     let latestMessageId = Number(chatPanel?.dataset.latestMessageId || 0);
@@ -108,6 +111,14 @@
     let requestedRecordingKind = null;
     let recordingStartedAt = 0;
     let discardRecording = false;
+    let cancelRecording = false;
+    let activeRecordingPointerId = null;
+    let recordingPointerStartX = 0;
+    const cancelSwipeDeadZone = 24;
+
+    function getCancelSwipeDistance() {
+        return Math.max(150, Math.min(window.innerWidth * 0.48, 260));
+    }
 
     function updateChatViewport() {
         if (window.innerWidth > 820) return;
@@ -120,8 +131,16 @@
         if (feed) feed.scrollTop = feed.scrollHeight;
     }
 
+    function resizeMessageInput() {
+        if (!messageInput) return;
+        messageInput.style.height = '38px';
+        messageInput.style.height = `${Math.min(messageInput.scrollHeight, 104)}px`;
+    }
+
     updateChatViewport();
     scrollChatToBottom();
+    resizeMessageInput();
+    messageInput?.addEventListener('input', resizeMessageInput);
     window.visualViewport?.addEventListener('resize', updateChatViewport);
     window.addEventListener('orientationchange', () => {
         window.setTimeout(() => {
@@ -236,6 +255,7 @@
                 recordingStream.getTracks().forEach((track) => track.stop());
                 recordingStream = null;
                 recordingKind = null;
+                if (recordStatus) recordStatus.textContent = 'Permission granted. Hold the button again to record.';
                 return;
             }
             recordedChunks = [];
@@ -251,6 +271,7 @@
             mediaRecorder.start();
             recordingStartedAt = Date.now();
             discardRecording = false;
+            cancelRecording = false;
 
             const activeButton = kind === 'voice' ? recordVoiceButton : recordCircleButton;
             activeButton?.classList.add('recording');
@@ -263,7 +284,8 @@
             if (kind === 'video_circle' && circlePreview && circlePreviewVideo) {
                 circlePreviewVideo.srcObject = recordingStream;
                 circlePreview.hidden = false;
-                if (circlePreviewStatus) circlePreviewStatus.textContent = 'Release to send';
+                circlePreview.style.setProperty('--cancel-progress', '0');
+                circlePreview.style.setProperty('--preview-shift', '0px');
             }
         } catch (error) {
             recordingKind = null;
@@ -275,10 +297,11 @@
         }
     }
 
-    function stopRecording() {
+    function stopRecording({ cancel = false } = {}) {
         requestedRecordingKind = null;
         if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
-        discardRecording = Date.now() - recordingStartedAt < 600;
+        cancelRecording = cancel;
+        discardRecording = cancel || Date.now() - recordingStartedAt < 600;
         mediaRecorder.stop();
         recordVoiceButton?.classList.remove('recording');
         recordCircleButton?.classList.remove('recording');
@@ -287,7 +310,11 @@
             recordingStream = null;
         }
         if (circlePreviewVideo) circlePreviewVideo.srcObject = null;
-        if (circlePreview) circlePreview.hidden = true;
+        if (circlePreview) {
+            circlePreview.hidden = true;
+            circlePreview.style.removeProperty('--cancel-progress');
+            circlePreview.style.removeProperty('--preview-shift');
+        }
     }
 
     async function sendRecordedMedia() {
@@ -295,7 +322,12 @@
             recordedChunks = [];
             recordingKind = null;
             discardRecording = false;
-            if (recordStatus) recordStatus.textContent = 'Hold the button to record.';
+            if (recordStatus) {
+                recordStatus.textContent = cancelRecording
+                    ? 'Recording canceled.'
+                    : 'Hold the button to record.';
+            }
+            cancelRecording = false;
             return;
         }
 
@@ -333,22 +365,76 @@
             }
         } finally {
             recordingKind = null;
+            cancelRecording = false;
         }
     }
 
     function bindHoldToRecord(button, kind) {
         button?.addEventListener('pointerdown', (event) => {
             event.preventDefault();
-            button.setPointerCapture(event.pointerId);
+            if (activeRecordingPointerId !== null) return;
+            activeRecordingPointerId = event.pointerId;
+            recordingPointerStartX = event.clientX;
             requestedRecordingKind = kind;
             startRecording(kind);
         });
-        button?.addEventListener('pointerup', (event) => {
-            event.preventDefault();
-            stopRecording();
-        });
-        button?.addEventListener('pointercancel', stopRecording);
+
+        button?.addEventListener('contextmenu', (event) => event.preventDefault());
     }
+
+    window.addEventListener('pointermove', (event) => {
+        if (
+            event.pointerId !== activeRecordingPointerId
+            || recordingKind !== 'video_circle'
+            || !mediaRecorder
+            || mediaRecorder.state !== 'recording'
+        ) {
+            return;
+        }
+
+        const rawDistance = Math.max(0, recordingPointerStartX - event.clientX);
+        const distance = Math.max(0, rawDistance - cancelSwipeDeadZone);
+        const cancelSwipeDistance = getCancelSwipeDistance();
+        const progress = Math.min(distance / cancelSwipeDistance, 1);
+        if (circlePreview) {
+            circlePreview.style.setProperty('--cancel-progress', String(progress));
+            circlePreview.style.setProperty('--preview-shift', `${-Math.min(distance * 0.45, 100)}px`);
+        }
+
+        if (progress >= 1) {
+            activeRecordingPointerId = null;
+            stopRecording({ cancel: true });
+        }
+    }, { capture: true });
+
+    window.addEventListener('pointerup', (event) => {
+        if (event.pointerId !== activeRecordingPointerId) return;
+        event.preventDefault();
+        activeRecordingPointerId = null;
+        stopRecording();
+    }, { capture: true });
+
+    window.addEventListener('pointercancel', (event) => {
+        if (event.pointerId !== activeRecordingPointerId || event.pointerType === 'touch') return;
+        activeRecordingPointerId = null;
+        stopRecording();
+    }, { capture: true });
+
+    window.addEventListener('blur', () => {
+        if (activeRecordingPointerId === null || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+        activeRecordingPointerId = null;
+        stopRecording();
+    });
+
+    document.addEventListener('touchend', (event) => {
+        if (activeRecordingPointerId === null) return;
+        const stillActive = Array.from(event.touches).some((touch) => touch.identifier === activeRecordingPointerId);
+        if (!stillActive) {
+            event.preventDefault();
+            activeRecordingPointerId = null;
+            stopRecording();
+        }
+    }, { passive: false, capture: true });
 
     bindHoldToRecord(recordVoiceButton, 'voice');
     bindHoldToRecord(recordCircleButton, 'video_circle');

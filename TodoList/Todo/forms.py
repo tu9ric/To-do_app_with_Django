@@ -65,6 +65,15 @@ class AccountDeleteForm(forms.Form):
         return password
 
 
+class AccountPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(user, *args, **kwargs)
+        self.fields['old_password'].widget.attrs.pop('autofocus', None)
+        self.fields['old_password'].widget.attrs['autocomplete'] = 'current-password'
+        self.fields['new_password1'].widget.attrs['autocomplete'] = 'new-password'
+        self.fields['new_password2'].widget.attrs['autocomplete'] = 'new-password'
+
+
 class AccountRecoveryForm(forms.Form):
     username = forms.CharField(label='Username', max_length=150)
     password1 = forms.CharField(label='New password', widget=forms.PasswordInput)
@@ -178,7 +187,7 @@ class ChatMessageForm(forms.ModelForm):
         }
         widgets = {
             'message': forms.Textarea(attrs={
-                'rows': 3,
+                'rows': 1,
                 'placeholder': 'Write a note, meal report, plan, or tiny love letter...',
             }),
             'attachment_type': forms.HiddenInput(),

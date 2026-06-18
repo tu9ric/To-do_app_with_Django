@@ -18,6 +18,7 @@ from .forms import (
     ChatMessageEditForm,
     ChatMessageForm,
     AccountDeleteForm,
+    AccountPasswordChangeForm,
     AccountProfileForm,
     AccountRecoveryForm,
     AddSpaceMemberForm,
@@ -27,7 +28,6 @@ from .forms import (
     SharedFileUpdateForm,
     TaskForm,
 )
-from django.contrib.auth.forms import PasswordChangeForm
 from .models import ChatMessage, CoupleEvent, CoupleSpace, SharedFile, Task
 from .security import decrypt_bytes
 
@@ -230,7 +230,7 @@ class SettingsPage(LoginRequiredMixin, TemplateView):
         context['space_form'] = CoupleSpaceForm()
         context['member_form'] = AddSpaceMemberForm()
         context['profile_form'] = AccountProfileForm(instance=self.request.user)
-        context['password_form'] = PasswordChangeForm(self.request.user)
+        context['password_form'] = AccountPasswordChangeForm(self.request.user)
         context['delete_account_form'] = AccountDeleteForm(self.request.user)
         context['members'] = active_space.members.order_by('username')
         return context
@@ -277,7 +277,7 @@ class SettingsPage(LoginRequiredMixin, TemplateView):
             return redirect('settings')
 
         if action == 'password':
-            form = PasswordChangeForm(request.user, request.POST)
+            form = AccountPasswordChangeForm(request.user, request.POST)
             if form.is_valid():
                 user = form.save()
                 update_session_auth_hash(request, user)
